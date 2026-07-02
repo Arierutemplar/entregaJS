@@ -1,0 +1,12 @@
+[
+  { "id": 1, "nombre": "Hamburguesa", "precio": 18000 },
+  { "id": 2, "nombre": "Pancho", "precio": 10000 },
+  { "id": 3, "nombre": "Lomo", "precio": 12000 },
+  { "id": 4, "nombre": "Pizza", "precio": 15000 },
+  { "id": 5, "nombre": "Empanada", "precio": 2000 },
+  { "id": 6, "nombre": "Papas Fritas", "precio": 7000 },
+  { "id": 7, "nombre": "Ensalada", "precio": 6000 },
+  { "id": 8, "nombre": "Gaseosa", "precio": 3000 },
+  { "id": 9, "nombre": "Cerveza", "precio": 4500 },
+  { "id": 10, "nombre": "Postre", "precio": 5000 }
+]

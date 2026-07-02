@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Pedidos - Restaurante</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+
+    <header>
+        <h1>¡Bienvenido a nuestro sistema de pedidos!</h1>
+    </header>
+
+    <main class="main-container">
+        <section class="menu-seccion">
+            <h2>Nuestro Menú</h2>
+            <div id="contenedor-productos" class="grid-productos">
+                </div>
+        </section>
+
+        <section class="carrito-seccion">
+            <h2>Tu Pedido</h2>
+            <ul id="lista-carrito" class="lista-carrito">
+                </ul>
+            <div class="resumen-totales">
+                <p id="total-unidades">Unidades: 0</p>
+                <p id="subtotal">Subtotal: $0</p>
+                <div id="descuento-contenedor"></div>
+                <h3 id="total-final">Total: $0</h3>
+            </div>
+            <button id="btn-finalizar" class="btn-finalizar">Finalizar Pedido</button>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
