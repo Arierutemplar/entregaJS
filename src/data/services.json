@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": 1,
+    "name": "Corte de Cabello",
+    "description": "Corte clásico o moderno",
+    "duration": 30,
+    "price": 150,
+    "category": "Peluquería",
+    "available": true
+  }
+]
