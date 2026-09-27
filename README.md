@@ -1,14 +1,16 @@
-# **Sistema de Turnos y Reservas \- Base Inicial (Backend con ESM)**
+# Sistema de Turnos y Reservas - API REST (Backend con ESM)
 
-Proyecto backend desarrollado en **Node.js** utilizando módulos de ECMAScript (**ESM**) y una arquitectura modular para la gestión de servicios en un sistema de turnos y reservas.
+Proyecto backend desarrollado en **Node.js** utilizando módulos de ECMAScript (**ESM**), Express y una arquitectura modular para la gestión de servicios mediante una API REST.
 
 ## **Estructura del Proyecto**
 
 src/  
  config/env.config.js  
  managers/ServiceManager.js  
+ routes/services.router.js  
  data/services.json  
  app.js  
+server.js  
 package.json  
 .env.example  
 .gitignore  
@@ -19,7 +21,7 @@ README.md
 Cada objeto de servicio almacenado en el sistema cuenta con la siguiente estructura:
 
 {  
- "id": "1",  
+ "id": 1,  
  "name": "Corte de Cabello Clásico",  
  "description": "Corte de cabello para caballero con estilo tradicional.",  
  "duration": 30,  
@@ -28,6 +30,16 @@ Cada objeto de servicio almacenado en el sistema cuenta con la siguiente estruct
  "available": true  
 }
 
+## **Endpoints de la API REST**
+
+La API expone los siguientes endpoints bajo la ruta base `/api/services`:
+
+- **`GET /api/services`**: Devuelve todos los servicios. Acepta filtros opcionales por query params (ej. `?category=Barbería` o `?available=true`).
+- **`GET /api/services/:sid`**: Devuelve un servicio específico según su ID (`200` si existe, `404` si no se encuentra).
+- **`POST /api/services`**: Crea un nuevo servicio a partir del JSON enviado en el `body`. El ID se genera automáticamente. Devuelve `201` si se crea con éxito o `400` si faltan campos obligatorios.
+- **`PUT /api/services/:sid`**: Actualiza un servicio existente por su ID (no permite modificar el ID). Devuelve `200` si se actualiza o `404` si no existe.
+- **`DELETE /api/services/:sid`**: Elimina un servicio por su ID. Devuelve `200` si se elimina o `404` si no existe.
+
 ## **Requisitos Previos**
 
 - Node.js instalado en tu equipo.
@@ -35,48 +47,7 @@ Cada objeto de servicio almacenado en el sistema cuenta con la siguiente estruct
 ## **Cómo Instalar**
 
 1. Clona el repositorio.
-2. Instala las dependencias necesarias ejecutando:  
+2. Instala las dependencias necesarias ejecutando:
+   ```bash
    npm install
-
-## **Configuración del Entorno**
-
-Crea un archivo .env en la raíz del proyecto basándote en el archivo de ejemplo .env.example:
-
-PORT=8080  
-NODE_ENV=development
-
-_(Nota: El archivo .env y la carpeta node_modules están excluidos del control de versiones por seguridad)._
-
-## **Cómo Ejecutar**
-
-Inicia la aplicación de prueba con el siguiente comando:
-
-npm start
-
-## **Ejemplos de Uso del ServiceManager**
-
-import ServiceManager from './managers/ServiceManager.js';
-
-const manager \= new ServiceManager();
-
-// 1\. Obtener todos los servicios  
-const services \= await manager.getServices();
-
-// 2\. Agregar un nuevo servicio (el ID se genera automáticamente)  
-const newService \= await manager.addService({  
- name: 'Masaje relajante',  
- description: 'Sesión antiestrés de 45 minutos',  
- duration: 45,  
- price: 600,  
- category: 'Spa',  
- available: true  
-});
-
-// 3\. Buscar servicio por ID  
-const service \= await manager.getServiceById(newService.id);
-
-// 4\. Actualizar un servicio (no permite modificar el ID)  
-const updated \= await manager.updateService(newService.id, { price: 650 });
-
-// 5\. Eliminar un servicio  
-const deleted \= await manager.deleteService(newService.id);
+   ```
