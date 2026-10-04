@@ -1,12 +1,10 @@
 import fs from 'fs';
-import path from 'path';
 
 export default class ServiceManager {
   constructor(filePath) {
     this.path = filePath;
   }
 
-  // Método privado para leer el archivo JSON
   async #readFile() {
     try {
       if (!fs.existsSync(this.path)) {
@@ -21,21 +19,16 @@ export default class ServiceManager {
     }
   }
 
-  // Método privado para escribir en el archivo JSON
   async #writeFile(services) {
     await fs.promises.writeFile(this.path, JSON.stringify(services, null, 2));
   }
 
-  // getServices() → devuelve todos los servicios
   async getServices() {
-    const services = await this.#readFile();
-    return services;
+    return await this.#readFile();
   }
 
-  // getServiceById(id) → devuelve el servicio o null/mensaje de error
   async getServiceById(id) {
     const services = await this.#readFile();
-    // Convertimos ambos a string o número según cómo manejes los IDs, aquí usamos coincidencia flexible
     const service = services.find(s => String(s.id) === String(id));
     if (!service) {
       return { error: `Servicio con id ${id} no encontrado` };
@@ -43,19 +36,27 @@ export default class ServiceManager {
     return service;
   }
 
-  // addService(serviceData) → agrega un servicio; el id se genera automáticamente
   async addService(serviceData) {
     const { name, description, duration, price, category, available } = serviceData;
 
-    // Valida que estén presentes: name, description, duration, price, category, available
     if (!name || !description || duration === undefined || price === undefined || !category || available === undefined) {
-      return { error: "Todos los campos son obligatorios: name, description, duration, price, category, available" };
+      return { error: "Faltan campos obligatorios o son inválidos" };
+    }
+
+    if (typeof duration !== 'number' || duration <= 0) {
+      return { error: "El campo 'duration' debe ser un número mayor a 0" };
+    }
+
+    if (typeof price !== 'number' || price < 0) {
+      return { error: "El campo 'price' debe ser un número válido mayor o igual a 0" };
+    }
+
+    if (typeof available !== 'boolean') {
+      return { error: "El campo 'available' debe ser de tipo booleano (true/false)" };
     }
 
     const services = await this.#readFile();
-
-    // Generar ID único automáticamente (ej. autoincremental basado en longitud o timestamp)
-    const newId = services.length > 0 ? Number(services[services.length - 1].id) + 1 : 1;
+    const newId = services.length > 0 ? Math.max(...services.map(s => Number(s.id))) + 1 : 1;
 
     const newService = {
       id: newId,
@@ -73,34 +74,38 @@ export default class ServiceManager {
     return newService;
   }
 
-  // updateService(id, updatedData) → actualiza el servicio; no permite modificar el id
-  async updateService(id, updatedData) {
+  async updateService(id, updateData) {
     const services = await this.#readFile();
     const index = services.findIndex(s => String(s.id) === String(id));
 
     if (index === -1) {
-      return { error: `No se puede actualizar. Servicio con id ${id} no existe` };
+      return { error: `Servicio con id ${id} no encontrado` };
     }
 
-    // Evitar que se modifique el id desde afuera
-    delete updatedData.id;
+    delete updateData.id;
 
-    services[index] = {
-      ...services[index],
-      ...updatedData
-    };
+    if (updateData.duration !== undefined && (typeof updateData.duration !== 'number' || updateData.duration <= 0)) {
+      return { error: "El campo 'duration' debe ser un número mayor a 0" };
+    }
+    if (updateData.price !== undefined && (typeof updateData.price !== 'number' || updateData.price < 0)) {
+      return { error: "El campo 'price' debe ser un número válido" };
+    }
+    if (updateData.available !== undefined && typeof updateData.available !== 'boolean') {
+      return { error: "El campo 'available' debe ser de tipo booleano" };
+    }
 
+    services[index] = { ...services[index], ...updateData };
     await this.#writeFile(services);
+
     return services[index];
   }
 
-  // deleteService(id) → elimina el servicio; devuelve null/error si no existe
   async deleteService(id) {
     const services = await this.#readFile();
     const index = services.findIndex(s => String(s.id) === String(id));
 
     if (index === -1) {
-      return { error: `No se puede eliminar. Servicio con id ${id} no existe` };
+      return { error: `Servicio con id ${id} no encontrado` };
     }
 
     const deletedService = services.splice(index, 1)[0];
