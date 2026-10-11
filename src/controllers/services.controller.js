@@ -1,15 +1,20 @@
-import ServiceManager from '../managers/ServiceManager.js';
+import ServicesDao from '../dao/services.dao.js';
+import ServicesRepository from '../repositories/services.repository.js';
+import ServicesService from '../services/services.service.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const serviceManager = new ServiceManager(path.join(__dirname, '../data/services.json'));
+
+const dao = new ServicesDao(path.join(__dirname, '../data/services.json'));
+const repository = new ServicesRepository(dao);
+const servicesService = new ServicesService(repository);
 
 export const getServices = async (req, res, next) => {
   try {
     const { category, available } = req.query;
-    let services = await serviceManager.getServices();
+    let services = await servicesService.getServices();
 
     if (category) {
       services = services.filter(s => s.category.toLowerCase() === category.toLowerCase());
@@ -29,7 +34,7 @@ export const getServices = async (req, res, next) => {
 export const getServiceById = async (req, res, next) => {
   try {
     const { sid } = req.params;
-    const service = await serviceManager.getServiceById(sid);
+    const service = await servicesService.getServiceById(sid);
 
     if (service.error) {
       return res.status(404).json({ status: 'error', message: service.error });
@@ -43,7 +48,7 @@ export const getServiceById = async (req, res, next) => {
 
 export const createService = async (req, res, next) => {
   try {
-    const result = await serviceManager.addService(req.body);
+    const result = await servicesService.createService(req.body);
     if (result.error) {
       return res.status(400).json({ status: 'error', message: result.error });
     }
@@ -56,7 +61,7 @@ export const createService = async (req, res, next) => {
 export const updateService = async (req, res, next) => {
   try {
     const { sid } = req.params;
-    const result = await serviceManager.updateService(sid, req.body);
+    const result = await servicesService.updateService(sid, req.body);
 
     if (result.error) {
       return res.status(404).json({ status: 'error', message: result.error });
@@ -71,7 +76,7 @@ export const updateService = async (req, res, next) => {
 export const deleteService = async (req, res, next) => {
   try {
     const { sid } = req.params;
-    const result = await serviceManager.deleteService(sid);
+    const result = await servicesService.deleteService(sid);
 
     if (result.error) {
       return res.status(404).json({ status: 'error', message: result.error });
