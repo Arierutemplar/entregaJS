@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+
 export default class ServicesService {
   constructor(servicesRepository) {
     this.servicesRepository = servicesRepository;
@@ -8,6 +10,10 @@ export default class ServicesService {
   }
 
   async getServiceById(id) {
+    if (!mongoose.isValidObjectId(id)) {
+      return { error: `Servicio con id ${id} no encontrado` };
+    }
+
     const service = await this.servicesRepository.getById(id);
     if (!service) {
       return { error: `Servicio con id ${id} no encontrado` };
@@ -34,11 +40,7 @@ export default class ServicesService {
       return { error: "El campo 'available' debe ser de tipo booleano (true/false)" };
     }
 
-    const services = await this.servicesRepository.getAll();
-    const newId = services.length > 0 ? Math.max(...services.map(s => Number(s.id))) + 1 : 1;
-
     const newService = {
-      id: newId,
       name,
       description,
       duration,
@@ -51,27 +53,36 @@ export default class ServicesService {
   }
 
   async updateService(id, updateData) {
+    if (!mongoose.isValidObjectId(id)) {
+      return { error: `Servicio con id ${id} no encontrado` };
+    }
+
     const existing = await this.servicesRepository.getById(id);
     if (!existing) {
       return { error: `Servicio con id ${id} no encontrado` };
     }
 
-    delete updateData.id;
+    const safeUpdateData = { ...updateData };
+    delete safeUpdateData.id;
 
-    if (updateData.duration !== undefined && (typeof updateData.duration !== 'number' || updateData.duration <= 0)) {
+    if (safeUpdateData.duration !== undefined && (typeof safeUpdateData.duration !== 'number' || safeUpdateData.duration <= 0)) {
       return { error: "El campo 'duration' debe ser un número mayor a 0" };
     }
-    if (updateData.price !== undefined && (typeof updateData.price !== 'number' || updateData.price < 0)) {
+    if (safeUpdateData.price !== undefined && (typeof safeUpdateData.price !== 'number' || safeUpdateData.price < 0)) {
       return { error: "El campo 'price' debe ser un número válido" };
     }
-    if (updateData.available !== undefined && typeof updateData.available !== 'boolean') {
+    if (safeUpdateData.available !== undefined && typeof safeUpdateData.available !== 'boolean') {
       return { error: "El campo 'available' debe ser de tipo booleano" };
     }
 
-    return await this.servicesRepository.update(id, updateData);
+    return await this.servicesRepository.update(id, safeUpdateData);
   }
 
   async deleteService(id) {
+    if (!mongoose.isValidObjectId(id)) {
+      return { error: `Servicio con id ${id} no encontrado` };
+    }
+
     const deleted = await this.servicesRepository.delete(id);
     if (!deleted) {
       return { error: `Servicio con id ${id} no encontrado` };

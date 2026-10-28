@@ -1,2 +1,4 @@
 node_modules
 .env
+# Herramienta de empaquetado para IA
+bundle.js

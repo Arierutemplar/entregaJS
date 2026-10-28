@@ -1,13 +1,8 @@
 import ServicesDao from '../dao/services.dao.js';
 import ServicesRepository from '../repositories/services.repository.js';
 import ServicesService from '../services/services.service.js';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const dao = new ServicesDao(path.join(__dirname, '../data/services.json'));
+const dao = new ServicesDao();
 const repository = new ServicesRepository(dao);
 const servicesService = new ServicesService(repository);
 

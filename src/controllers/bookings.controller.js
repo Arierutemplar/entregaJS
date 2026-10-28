@@ -3,16 +3,11 @@ import BookingsRepository from '../repositories/bookings.repository.js';
 import BookingsService from '../services/bookings.service.js';
 import ServicesDao from '../dao/services.dao.js';
 import ServicesRepository from '../repositories/services.repository.js';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const bookingsDao = new BookingsDao(path.join(__dirname, '../data/bookings.json'));
+const bookingsDao = new BookingsDao();
 const bookingsRepository = new BookingsRepository(bookingsDao);
 
-const servicesDao = new ServicesDao(path.join(__dirname, '../data/services.json'));
+const servicesDao = new ServicesDao();
 const servicesRepository = new ServicesRepository(servicesDao);
 
 const bookingsService = new BookingsService(bookingsRepository, servicesRepository);

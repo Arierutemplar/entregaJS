@@ -1,51 +1,27 @@
-import fs from 'fs';
+import Booking from '../models/booking.model.js';
+
+const withServices = query => query.populate('services.service').lean();
 
 export default class BookingsDao {
-  constructor(filePath) {
-    this.path = filePath;
-  }
-
-  async #readFile() {
-    try {
-      if (!fs.existsSync(this.path)) {
-        await fs.promises.writeFile(this.path, JSON.stringify([], null, 2));
-        return [];
-      }
-      const data = await fs.promises.readFile(this.path, 'utf-8');
-      return JSON.parse(data);
-    } catch (error) {
-      console.error("Error al leer el archivo de reservas:", error);
-      return [];
-    }
-  }
-
-  async #writeFile(bookings) {
-    await fs.promises.writeFile(this.path, JSON.stringify(bookings, null, 2));
-  }
-
   async getById(id) {
-    const bookings = await this.#readFile();
-    return bookings.find(b => String(b.id) === String(id)) || null;
+    return withServices(Booking.findById(id));
   }
 
   async create(bookingData) {
-    const bookings = await this.#readFile();
-    bookings.push(bookingData);
-    await this.#writeFile(bookings);
-    return bookingData;
+    const booking = await Booking.create(bookingData);
+    return withServices(Booking.findById(booking._id));
   }
 
   async update(id, updateData) {
-    const bookings = await this.#readFile();
-    const index = bookings.findIndex(b => String(b.id) === String(id));
-    if (index === -1) return null;
-
-    bookings[index] = { ...bookings[index], ...updateData };
-    await this.#writeFile(bookings);
-    return bookings[index];
+    return withServices(
+      Booking.findByIdAndUpdate(id, updateData, {
+        new: true,
+        runValidators: true
+      })
+    );
   }
 
   async getAll() {
-    return await this.#readFile();
+    return withServices(Booking.find());
   }
 }
