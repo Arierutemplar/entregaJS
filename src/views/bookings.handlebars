@@ -1,0 +1,37 @@
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Agenda</p>
+    <h1>Reservas y turnos</h1>
+    <p>Información actualizada desde la base de datos.</p>
+  </div>
+</section>
+
+<section id="bookings-list" class="booking-list" aria-live="polite">
+  {{#if bookings.length}}
+    {{#each bookings}}
+      <article class="card booking-card" data-booking-id="{{_id}}">
+        <div class="card-topline">
+          <span class="tag">{{status}}</span>
+          <time datetime="{{date}}T{{time}}">{{date}} · {{time}}</time>
+        </div>
+        <h2>{{clientName}}</h2>
+        <p>{{clientEmail}}</p>
+        <h3>Servicios</h3>
+        {{#if services.length}}
+          <ul class="service-items">
+            {{#each services}}
+              <li>
+                <span>{{service.name}}</span>
+                <strong>× {{quantity}}</strong>
+              </li>
+            {{/each}}
+          </ul>
+        {{else}}
+          <p class="muted">Sin servicios asociados.</p>
+        {{/if}}
+      </article>
+    {{/each}}
+  {{else}}
+    <p id="empty-bookings" class="empty-state">No hay reservas registradas.</p>
+  {{/if}}
+</section>

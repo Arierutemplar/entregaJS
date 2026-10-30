@@ -6,6 +6,10 @@ export default class BookingsService {
     this.servicesRepository = servicesRepository;
   }
 
+  async getBookings() {
+    return await this.bookingsRepository.getAll();
+  }
+
   async createBooking(bookingData) {
     const { clientName, clientEmail, date, time, status, services } = bookingData;
 

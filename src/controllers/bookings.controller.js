@@ -18,6 +18,7 @@ export const createBooking = async (req, res, next) => {
     if (result.error) {
       return res.status(400).json({ status: 'error', message: result.error });
     }
+    req.app.get('io').emit('booking:updated', result);
     res.status(201).json({ status: 'success', payload: result });
   } catch (error) {
     next(error);
@@ -47,6 +48,7 @@ export const addServiceToBooking = async (req, res, next) => {
     if (result.error) {
       return res.status(404).json({ status: 'error', message: result.error });
     }
+    req.app.get('io').emit('booking:updated', result);
 
     res.json({ status: 'success', message: 'Servicio agregado a la reserva exitosamente', payload: result });
   } catch (error) {

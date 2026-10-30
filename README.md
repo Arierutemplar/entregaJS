@@ -369,6 +369,29 @@ npm start     # Ejecuta el servidor normalmente
 npm run bundle # Genera el resumen auxiliar del proyecto
 ```
 
+## Vistas web y comunicación en tiempo real
+
+Además de la API REST, el proyecto ofrece vistas renderizadas del lado del
+servidor con Handlebars:
+
+- `GET /views/services`: muestra los servicios reales obtenidos desde MongoDB.
+- `GET /views/bookings`: muestra las reservas reales y sus servicios asociados.
+
+Las plantillas se encuentran en `src/views`, el layout común está en
+`src/views/layouts/main.handlebars` y los recursos estáticos se sirven desde
+`src/public`.
+
+Socket.io se integra sobre el mismo servidor HTTP de Node.js. El cliente web
+se conecta mediante `src/public/js/socket.js` y escucha:
+
+- `service:created`: agrega dinámicamente un nuevo servicio al catálogo.
+- `booking:updated`: agrega o actualiza una reserva, incluyendo la cantidad de
+  sus servicios.
+
+Estos eventos se emiten después de crear un servicio, crear una reserva o
+agregar un servicio a una reserva desde la API REST. La API conserva sus rutas
+originales sin cambios.
+
 ## Seguridad y buenas prácticas
 
 - No publicar el archivo `.env`.

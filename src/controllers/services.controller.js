@@ -47,6 +47,7 @@ export const createService = async (req, res, next) => {
     if (result.error) {
       return res.status(400).json({ status: 'error', message: result.error });
     }
+    req.app.get('io').emit('service:created', result);
     res.status(201).json({ status: 'success', payload: result });
   } catch (error) {
     next(error);

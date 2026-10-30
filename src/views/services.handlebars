@@ -1,0 +1,30 @@
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Catálogo</p>
+    <h1>Servicios disponibles</h1>
+    <p>Consulta los servicios registrados en MongoDB Atlas.</p>
+  </div>
+</section>
+
+<section id="services-list" class="card-grid" aria-live="polite">
+  {{#if services.length}}
+    {{#each services}}
+      <article class="card service-card" data-service-id="{{_id}}">
+        <div class="card-topline">
+          <span class="tag">{{category}}</span>
+          <span class="availability {{#if available}}is-available{{else}}is-unavailable{{/if}}">
+            {{#if available}}Disponible{{else}}No disponible{{/if}}
+          </span>
+        </div>
+        <h2>{{name}}</h2>
+        <p>{{description}}</p>
+        <dl class="details">
+          <div><dt>Duración</dt><dd>{{duration}} min</dd></div>
+          <div><dt>Precio</dt><dd>${{price}}</dd></div>
+        </dl>
+      </article>
+    {{/each}}
+  {{else}}
+    <p id="empty-services" class="empty-state">No hay servicios registrados.</p>
+  {{/if}}
+</section>
