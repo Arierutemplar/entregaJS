@@ -16,7 +16,7 @@ const bookingsService = new BookingsService(
 
 export const renderServices = async (req, res, next) => {
   try {
-    const services = await servicesService.getServices();
+    const { payload: services } = await servicesService.getServices({ paginate: false });
     res.render('services', {
       title: 'Servicios disponibles',
       services

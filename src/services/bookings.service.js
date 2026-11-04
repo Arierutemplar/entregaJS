@@ -1,5 +1,9 @@
 import mongoose from 'mongoose';
 
+const ALLOWED_STATUS = ['pendiente', 'confirmada', 'cancelada', 'completada'];
+
+const normalizeServiceRef = (service) => service?._id || service;
+
 export default class BookingsService {
   constructor(bookingsRepository, servicesRepository) {
     this.bookingsRepository = bookingsRepository;
@@ -13,14 +17,20 @@ export default class BookingsService {
   async createBooking(bookingData) {
     const { clientName, clientEmail, date, time, status, services } = bookingData;
 
-    if (!clientName || !clientEmail || !date || !time) {
-      return { error: "Faltan campos obligatorios para la reserva: clientName, clientEmail, date, time" };
+    if (status && !ALLOWED_STATUS.includes(status)) {
+      return { error: "El campo 'status' no es válido" };
     }
 
     const validatedServices = [];
-    if (Array.isArray(services) && services.length > 0) {
+    if (Array.isArray(services)) {
       for (const item of services) {
-        const serviceId = item.service;
+        const serviceId = item?.service;
+        const quantity = item?.quantity ?? 1;
+
+        if (!Number.isInteger(quantity) || quantity <= 0) {
+          return { error: "El campo 'quantity' debe ser un entero positivo" };
+        }
+
         if (!mongoose.isValidObjectId(serviceId)) {
           return { error: `No se puede crear la reserva. El servicio con id ${serviceId} no existe.` };
         }
@@ -29,27 +39,22 @@ export default class BookingsService {
         if (!serviceExists) {
           return { error: `No se puede crear la reserva. El servicio con id ${serviceId} no existe.` };
         }
+
         validatedServices.push({
           service: serviceId,
-          quantity: Number.isInteger(item.quantity) && item.quantity > 0 ? item.quantity : 1
+          quantity
         });
       }
     }
 
-    const newBooking = {
+    return await this.bookingsRepository.create({
       clientName,
       clientEmail,
       date,
       time,
       status: status || 'pendiente',
       services: validatedServices
-    };
-
-    if (status && !['pendiente', 'confirmada', 'cancelada', 'completada'].includes(status)) {
-      return { error: "El campo 'status' no es válido" };
-    }
-
-    return await this.bookingsRepository.create(newBooking);
+    });
   }
 
   async getBookingById(id) {
@@ -64,7 +69,17 @@ export default class BookingsService {
     return booking;
   }
 
-  async addServiceToBooking(bid, sid) {
+  async confirmBooking(id) {
+    const booking = await this.getBookingById(id);
+    if (booking.error) return booking;
+    return this.bookingsRepository.update(id, { status: 'confirmada' });
+  }
+
+  async addServiceToBooking(bid, sid, quantity = 1) {
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      return { error: "El campo 'quantity' debe ser un entero positivo", status: 400 };
+    }
+
     if (!mongoose.isValidObjectId(bid)) {
       return { error: `Reserva con id ${bid} no encontrada` };
     }
@@ -82,23 +97,21 @@ export default class BookingsService {
       return { error: `No se puede agregar. El servicio con id ${sid} no existe` };
     }
 
-    // Regla de negocio: si el servicio ya existe en la reserva, incrementa quantity
-    const serviceIndex = booking.services.findIndex(item => {
-      const serviceId = item.service?._id || item.service;
-      return String(serviceId) === String(sid);
-    });
+    const serviceIndex = booking.services.findIndex((item) => (
+      String(normalizeServiceRef(item.service)) === String(sid)
+    ));
 
     if (serviceIndex !== -1) {
-      booking.services[serviceIndex].quantity += 1;
+      booking.services[serviceIndex].quantity += quantity;
     } else {
       booking.services.push({
         service: sid,
-        quantity: 1
+        quantity
       });
     }
 
-    const services = booking.services.map(item => ({
-      service: item.service?._id || item.service,
+    const services = booking.services.map((item) => ({
+      service: normalizeServiceRef(item.service),
       quantity: item.quantity
     }));
 

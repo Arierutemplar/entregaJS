@@ -1,12 +1,89 @@
 import mongoose from 'mongoose';
+import { buildPagination } from '../utils/pagination.js';
+
+const SORTABLE_FIELDS = new Set([
+  'name',
+  'description',
+  'duration',
+  'price',
+  'category',
+  'available',
+  'createdAt',
+  'updatedAt'
+]);
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const pickServiceFields = (serviceData) => {
+  const safeData = {};
+  const fields = ['name', 'description', 'duration', 'price', 'category', 'available'];
+
+  for (const field of fields) {
+    if (serviceData[field] !== undefined) {
+      safeData[field] = serviceData[field];
+    }
+  }
+
+  return safeData;
+};
 
 export default class ServicesService {
   constructor(servicesRepository) {
     this.servicesRepository = servicesRepository;
   }
 
-  async getServices() {
-    return await this.servicesRepository.getAll();
+  async getServices(query = {}) {
+    const filter = {};
+
+    if (query.category) {
+      filter.category = {
+        $regex: `^${escapeRegex(query.category)}$`,
+        $options: 'i'
+      };
+    }
+
+    if (typeof query.available === 'boolean') {
+      filter.available = query.available;
+    }
+
+    const sort = {};
+    if (query.sortBy && SORTABLE_FIELDS.has(query.sortBy)) {
+      sort[query.sortBy] = query.order === 'desc' ? -1 : 1;
+    }
+
+    if (query.paginate === false) {
+      const payload = await this.servicesRepository.getAll({ filter, sort });
+      const total = payload.length;
+
+      return {
+        payload,
+        total,
+        totalDocs: total,
+        page: 1,
+        limit: total,
+        totalPages: total > 0 ? 1 : 0,
+        hasPrevPage: false,
+        hasNextPage: false
+      };
+    }
+
+    const page = Number.isInteger(query.page) && query.page > 0 ? query.page : 1;
+    const limit = Number.isInteger(query.limit) && query.limit > 0 ? query.limit : 10;
+
+    const [total, payload] = await Promise.all([
+      this.servicesRepository.count(filter),
+      this.servicesRepository.getAll({
+        filter,
+        sort,
+        skip: (page - 1) * limit,
+        limit
+      })
+    ]);
+
+    return {
+      payload,
+      ...buildPagination(total, page, limit)
+    };
   }
 
   async getServiceById(id) {
@@ -22,34 +99,7 @@ export default class ServicesService {
   }
 
   async createService(serviceData) {
-    const { name, description, duration, price, category, available } = serviceData;
-
-    if (!name || !description || duration === undefined || price === undefined || !category || available === undefined) {
-      return { error: "Faltan campos obligatorios o son inválidos" };
-    }
-
-    if (typeof duration !== 'number' || duration <= 0) {
-      return { error: "El campo 'duration' debe ser un número mayor a 0" };
-    }
-
-    if (typeof price !== 'number' || price < 0) {
-      return { error: "El campo 'price' debe ser un número válido mayor o igual a 0" };
-    }
-
-    if (typeof available !== 'boolean') {
-      return { error: "El campo 'available' debe ser de tipo booleano (true/false)" };
-    }
-
-    const newService = {
-      name,
-      description,
-      duration,
-      price,
-      category,
-      available
-    };
-
-    return await this.servicesRepository.create(newService);
+    return await this.servicesRepository.create(pickServiceFields(serviceData));
   }
 
   async updateService(id, updateData) {
@@ -62,20 +112,7 @@ export default class ServicesService {
       return { error: `Servicio con id ${id} no encontrado` };
     }
 
-    const safeUpdateData = { ...updateData };
-    delete safeUpdateData.id;
-
-    if (safeUpdateData.duration !== undefined && (typeof safeUpdateData.duration !== 'number' || safeUpdateData.duration <= 0)) {
-      return { error: "El campo 'duration' debe ser un número mayor a 0" };
-    }
-    if (safeUpdateData.price !== undefined && (typeof safeUpdateData.price !== 'number' || safeUpdateData.price < 0)) {
-      return { error: "El campo 'price' debe ser un número válido" };
-    }
-    if (safeUpdateData.available !== undefined && typeof safeUpdateData.available !== 'boolean') {
-      return { error: "El campo 'available' debe ser de tipo booleano" };
-    }
-
-    return await this.servicesRepository.update(id, safeUpdateData);
+    return await this.servicesRepository.update(id, pickServiceFields(updateData));
   }
 
   async deleteService(id) {

@@ -42,6 +42,8 @@
           <strong>× ${escapeHtml(item.quantity)}</strong></li>`).join('')}</ul>`
       : '<p class="muted">Sin servicios asociados.</p>';
     const existingCard = document.querySelector(`[data-booking-id="${booking._id}"]`);
+    const confirmMarkup = booking.status === 'confirmada' ? '' : `
+      <button type="button" class="btn confirm-booking-btn" data-booking-id="${escapeHtml(booking._id)}">Confirmar reserva</button>`;
 
     if (existingCard) {
       existingCard.innerHTML = `
@@ -51,7 +53,7 @@
         </div>
         <h2>${escapeHtml(booking.clientName)}</h2>
         <p>${escapeHtml(booking.clientEmail)}</p>
-        <h3>Servicios</h3>${servicesMarkup}`;
+        <h3>Servicios</h3>${servicesMarkup}${confirmMarkup}`;
       return;
     }
 
@@ -66,7 +68,21 @@
       </div>
       <h2>${escapeHtml(booking.clientName)}</h2>
       <p>${escapeHtml(booking.clientEmail)}</p>
-      <h3>Servicios</h3>${servicesMarkup}`;
+      <h3>Servicios</h3>${servicesMarkup}${confirmMarkup}`;
     list.prepend(card);
+  });
+
+  document.addEventListener('click', event => {
+    const button = event.target.closest('.confirm-booking-btn');
+    if (!button) return;
+
+    button.disabled = true;
+    socket.emit('client:confirm-booking', { bookingId: button.dataset.bookingId }, response => {
+      if (response?.status !== 'success') button.disabled = false;
+    });
+  });
+
+  socket.on('booking:error', ({ message }) => {
+    alert(message);
   });
 })();

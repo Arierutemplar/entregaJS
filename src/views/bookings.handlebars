@@ -29,6 +29,9 @@
         {{else}}
           <p class="muted">Sin servicios asociados.</p>
         {{/if}}
+        {{#unless (eq status "confirmada")}}
+          <button type="button" class="btn confirm-booking-btn" data-booking-id="{{_id}}">Confirmar reserva</button>
+        {{/unless}}
       </article>
     {{/each}}
   {{else}}

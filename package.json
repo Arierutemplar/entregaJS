@@ -17,6 +17,7 @@
     "express": "^5.2.1",
     "express-handlebars": "^9.0.4",
     "mongoose": "^9.11.4",
-    "socket.io": "^4.8.4"
+    "socket.io": "^4.8.4",
+    "zod": "^3.25.76"
   }
 }

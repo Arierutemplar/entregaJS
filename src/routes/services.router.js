@@ -1,18 +1,24 @@
 import { Router } from 'express';
-import { 
-  getServices, 
-  getServiceById, 
-  createService, 
-  updateService, 
-  deleteService 
+import {
+  getServices,
+  getServiceById,
+  createService,
+  updateService,
+  deleteService
 } from '../controllers/services.controller.js';
+import { validate } from '../middlewares/validate.middleware.js';
+import {
+  createServiceSchema,
+  servicesQuerySchema,
+  updateServiceSchema
+} from '../validations/services.validation.js';
 
 const router = Router();
 
-router.get('/', getServices);
+router.get('/', validate(servicesQuerySchema, 'query'), getServices);
 router.get('/:sid', getServiceById);
-router.post('/', createService);
-router.put('/:sid', updateService);
+router.post('/', validate(createServiceSchema), createService);
+router.put('/:sid', validate(updateServiceSchema), updateService);
 router.delete('/:sid', deleteService);
 
 export default router;

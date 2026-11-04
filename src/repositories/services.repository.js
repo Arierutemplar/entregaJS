@@ -3,8 +3,12 @@ export default class ServicesRepository {
     this.dao = dao;
   }
 
-  async getAll() {
-    return await this.dao.getAll();
+  async getAll(options) {
+    return await this.dao.getAll(options);
+  }
+
+  async count(filter) {
+    return await this.dao.count(filter);
   }
 
   async getById(id) {

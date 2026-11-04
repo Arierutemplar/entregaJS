@@ -1,8 +1,15 @@
 import Service from '../models/service.model.js';
 
 export default class ServicesDao {
-  async getAll() {
-    return Service.find().lean();
+  async getAll({ filter = {}, sort = {}, skip = 0, limit = 0 } = {}) {
+    let query = Service.find(filter).sort(sort);
+    if (skip) query = query.skip(skip);
+    if (limit) query = query.limit(limit);
+    return query.lean();
+  }
+
+  async count(filter = {}) {
+    return Service.countDocuments(filter);
   }
 
   async getById(id) {

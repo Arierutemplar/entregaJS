@@ -1,7 +1,8 @@
-# API de gestión de servicios y reservas
+# Backend del Sistema de Turnos y Reservas
 
-Backend REST para administrar un catálogo de servicios y las reservas de sus
-clientes. El proyecto está desarrollado con Node.js y Express, utiliza
+Backend para administrar un catálogo de servicios y las reservas de sus
+clientes. Expone una API REST y vistas Handlebars con actualizaciones en tiempo
+real mediante Socket.io. Está desarrollado con Node.js y Express, utiliza
 MongoDB Atlas como base de datos en la nube y Mongoose como ODM.
 
 La aplicación aplica una arquitectura por capas con separación de
@@ -41,6 +42,9 @@ futura evolución del proyecto.
 - Express
 - Mongoose
 - MongoDB Atlas
+- Socket.io
+- Handlebars (express-handlebars)
+- Zod
 - dotenv
 - ECMAScript Modules (ESM)
 
@@ -158,8 +162,16 @@ La aplicación se divide en las siguientes responsabilidades:
 - **Repositories:** exponen operaciones de persistencia a los servicios.
 - **DAO:** ejecutan consultas Mongoose sobre los modelos.
 - **Models:** definen los esquemas y las relaciones de MongoDB.
+- **Middlewares:** validan con Zod los datos de entrada antes de llegar al
+  controlador (`src/middlewares/validate.middleware.js`).
+- **Validations:** esquemas Zod de servicios y reservas (`src/validations`).
+- **Sockets / Utils:** manejadores de eventos Socket.io (`src/sockets`) y el
+  módulo `src/utils/socket.js`.
 - **Config:** carga las variables de entorno y administra la conexión con la
   base de datos.
+
+Los errores se propagan con `next(error)` hacia el middleware centralizado de
+errores definido en `src/app.js`.
 
 Los modelos principales son:
 
@@ -184,12 +196,23 @@ Todas las rutas utilizan el prefijo correspondiente:
 GET /api/services
 ```
 
-Admite filtros opcionales:
+Parámetros opcionales (validados con Zod):
+
+| Parámetro   | Descripción                                              |
+|-------------|----------------------------------------------------------|
+| `category`  | Filtra por categoría                                     |
+| `available` | `true` o `false`                                         |
+| `page`      | Número de página                                         |
+| `limit`     | Resultados por página                                    |
+| `sortBy`    | Campo de orden (`name`, `price`, `duration`, `createdAt`…) |
+| `order`     | `asc` o `desc`                                           |
 
 ```http
-GET /api/services?category=Peluquería
-GET /api/services?available=true
+GET /api/services?category=Peluquería&available=true&page=1&limit=5&sortBy=price&order=desc
 ```
+
+La respuesta incluye `payload` junto con los datos de paginación (`page`,
+`limit`, `hasPrevPage`, `hasNextPage`, `prevLink`, `nextLink`).
 
 #### Obtener un servicio por ID
 
@@ -300,7 +323,23 @@ Si no se especifica, el estado predeterminado es `pendiente`.
 GET /api/bookings/:bid
 ```
 
-La respuesta incluye los servicios relacionados mediante `populate`.
+El DAO consulta la reserva con `populate('services.service')`, por lo que cada
+elemento de `services` devuelve el documento completo del servicio (nombre,
+precio, duración, etc.) junto con su `quantity`, en lugar de solo su `ObjectId`.
+
+```json
+{
+  "status": "success",
+  "payload": {
+    "_id": "…",
+    "clientName": "Ana",
+    "status": "pendiente",
+    "services": [
+      { "service": { "_id": "…", "name": "Corte", "price": 20 }, "quantity": 1 }
+    ]
+  }
+}
+```
 
 #### Agregar un servicio a una reserva
 
@@ -310,6 +349,25 @@ POST /api/bookings/:bid/services/:sid
 
 Si el servicio ya existe dentro de la reserva, su campo `quantity` aumenta en
 uno. Si todavía no existe, se agrega con cantidad `1`.
+
+### Evaluación automática
+
+```http
+POST /api/evaluate
+```
+
+Devuelve `200` con:
+
+```json
+{ "status": "success", "message": "Evaluación recibida correctamente" }
+```
+
+## Validaciones
+
+Los datos de entrada (`body` y `query`) se validan con
+[Zod](https://zod.dev) mediante el middleware `validate(schema, source)`,
+aplicado en las rutas antes de los controladores. Si la validación falla, se
+responde `400` con `status: "error"`, un `message` y la lista `errors`.
 
 ## Formato de respuestas
 
@@ -381,16 +439,29 @@ Las plantillas se encuentran en `src/views`, el layout común está en
 `src/views/layouts/main.handlebars` y los recursos estáticos se sirven desde
 `src/public`.
 
-Socket.io se integra sobre el mismo servidor HTTP de Node.js. El cliente web
-se conecta mediante `src/public/js/socket.js` y escucha:
+## WebSocket y tiempo real
+
+Socket.io se integra sobre el mismo servidor HTTP de Node.js. La instancia se
+gestiona de forma centralizada en `src/utils/socket.js`, que exporta
+`setSocketServer(io)` (llamada en `src/app.js`) y `emitToAll(event, data)`.
+Los controladores usan `emitToAll` sin depender de `req.app`.
+
+**Servidor → clientes** (cliente en `src/public/js/socket.js`):
 
 - `service:created`: agrega dinámicamente un nuevo servicio al catálogo.
-- `booking:updated`: agrega o actualiza una reserva, incluyendo la cantidad de
-  sus servicios.
+- `booking:updated`: agrega o actualiza una reserva en pantalla.
 
-Estos eventos se emiten después de crear un servicio, crear una reserva o
-agregar un servicio a una reserva desde la API REST. La API conserva sus rutas
-originales sin cambios.
+**Cliente → servidor** (manejador en `src/sockets/bookings.socket.js`):
+
+1. En `/views/bookings`, el botón "Confirmar reserva" emite
+   `client:confirm-booking` con `{ bookingId }`.
+2. El servidor cambia el estado a `confirmada` mediante
+   `BookingsService.confirmBooking`.
+3. Reemite `booking:updated` a todos los clientes, que actualizan la tarjeta
+   en vivo. Si ocurre un error, responde al emisor con `booking:error`.
+
+Los eventos de servidor también se emiten tras crear un servicio, crear una
+reserva o agregar un servicio a una reserva desde la API REST.
 
 ## Seguridad y buenas prácticas
 

@@ -1,6 +1,8 @@
 import ServicesDao from '../dao/services.dao.js';
 import ServicesRepository from '../repositories/services.repository.js';
 import ServicesService from '../services/services.service.js';
+import { buildPageLinks } from '../utils/pagination.js';
+import { emitToAll } from '../utils/socket.js';
 
 const dao = new ServicesDao();
 const repository = new ServicesRepository(dao);
@@ -8,19 +10,17 @@ const servicesService = new ServicesService(repository);
 
 export const getServices = async (req, res, next) => {
   try {
-    const { category, available } = req.query;
-    let services = await servicesService.getServices();
+    const query = req.validated ?? {};
+    const result = await servicesService.getServices(query);
+    const links = buildPageLinks({
+      baseUrl: req.baseUrl,
+      query: { ...query, limit: result.limit },
+      page: result.page,
+      hasPrevPage: result.hasPrevPage,
+      hasNextPage: result.hasNextPage
+    });
 
-    if (category) {
-      services = services.filter(s => s.category.toLowerCase() === category.toLowerCase());
-    }
-
-    if (available !== undefined) {
-      const isAvailable = available === 'true';
-      services = services.filter(s => s.available === isAvailable);
-    }
-
-    res.json({ status: 'success', payload: services });
+    res.json({ status: 'success', ...result, ...links });
   } catch (error) {
     next(error);
   }
@@ -47,7 +47,7 @@ export const createService = async (req, res, next) => {
     if (result.error) {
       return res.status(400).json({ status: 'error', message: result.error });
     }
-    req.app.get('io').emit('service:created', result);
+    emitToAll('service:created', result);
     res.status(201).json({ status: 'success', payload: result });
   } catch (error) {
     next(error);
