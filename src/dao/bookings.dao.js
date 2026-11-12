@@ -15,10 +15,14 @@ export default class BookingsDao {
   async update(id, updateData) {
     return withServices(
       Booking.findByIdAndUpdate(id, updateData, {
-        new: true,
+        returnDocument: 'after',
         runValidators: true
       })
     );
+  }
+
+  async delete(id) {
+    return Booking.findByIdAndDelete(id).lean();
   }
 
   async getAll() {

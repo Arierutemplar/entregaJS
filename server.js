@@ -5,11 +5,11 @@ import { connectDatabase } from './src/config/database.js';
 const startServer = async () => {
   await connectDatabase(envConfig.mongoUri);
   httpServer.listen(envConfig.port, () => {
-    console.log(`🚀 Servidor corriendo en el puerto ${envConfig.port} en entorno (${envConfig.nodeEnv})`);
+    console.log(`Servidor escuchando en el puerto ${envConfig.port} (${envConfig.nodeEnv})`);
   });
 };
 
 startServer().catch(error => {
-  console.error(`❌ No se pudo iniciar el servidor: ${error.message}`);
+  console.error(`No se pudo iniciar el servidor: ${error.message}`);
   process.exit(1);
 });

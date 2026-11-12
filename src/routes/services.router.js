@@ -7,6 +7,7 @@ import {
   deleteService
 } from '../controllers/services.controller.js';
 import { validate } from '../middlewares/validate.middleware.js';
+import { serviceIdParamsSchema } from '../validations/params.validation.js';
 import {
   createServiceSchema,
   servicesQuerySchema,
@@ -16,9 +17,9 @@ import {
 const router = Router();
 
 router.get('/', validate(servicesQuerySchema, 'query'), getServices);
-router.get('/:sid', getServiceById);
+router.get('/:sid', validate(serviceIdParamsSchema, 'params'), getServiceById);
 router.post('/', validate(createServiceSchema), createService);
-router.put('/:sid', validate(updateServiceSchema), updateService);
-router.delete('/:sid', deleteService);
+router.put('/:sid', validate(serviceIdParamsSchema, 'params'), validate(updateServiceSchema), updateService);
+router.delete('/:sid', validate(serviceIdParamsSchema, 'params'), deleteService);
 
 export default router;

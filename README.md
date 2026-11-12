@@ -31,6 +31,10 @@ futura evolución del proyecto.
   `pendiente`, `confirmada`, `cancelada` y `completada`.
 - Filtros de servicios por categoría y disponibilidad.
 - Manejo centralizado de errores HTTP.
+- Documentación OpenAPI en `/api/docs` y health check en `/api/health`.
+- Cabeceras de seguridad con Helmet y límite de 100 peticiones cada 15 minutos en `/api`.
+- Registro e inicio de sesión con JWT. El catálogo y las reservas siguen públicos.
+- Correo de reserva en segundo plano, con SMTP propio o Ethereal.
 - Configuración mediante variables de entorno usando `dotenv`.
 - Soporte para desarrollo con reinicio automático mediante `node --watch`.
 - Separación entre controladores, servicios, repositorios y objetos de acceso a
@@ -45,6 +49,10 @@ futura evolución del proyecto.
 - Socket.io
 - Handlebars (express-handlebars)
 - Zod
+- Swagger (swagger-ui-express y swagger-jsdoc)
+- Helmet y express-rate-limit
+- JSON Web Token y bcryptjs
+- Nodemailer
 - dotenv
 - ECMAScript Modules (ESM)
 
@@ -68,7 +76,7 @@ Con Git:
 
 ```bash
 git clone <URL_DEL_REPOSITORIO>
-cd backend1
+cd entregaJS
 ```
 
 También es posible descargar el repositorio como archivo ZIP, extraerlo y
@@ -95,6 +103,13 @@ PORT=8080
 NODE_ENV=development
 MONGO_URI=mongodb+srv://<usuario>:<password>@<cluster>.mongodb.net/<base_de_datos>?retryWrites=true&w=majority
 DNS_SERVERS=1.1.1.1,8.8.8.8
+JWT_SECRET=cambia-esta-clave-larga-y-aleatoria
+JWT_EXPIRES_IN=1d
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+MAIL_FROM="Turnos y Reservas <no-reply@turnos.local>"
 ```
 
 ### Descripción de las variables
@@ -105,6 +120,10 @@ DNS_SERVERS=1.1.1.1,8.8.8.8
 | `NODE_ENV` | Entorno de ejecución, por ejemplo `development` o `production`. |
 | `MONGO_URI` | Cadena de conexión al cluster de MongoDB Atlas. |
 | `DNS_SERVERS` | Servidores DNS utilizados por Node.js para resolver el registro SRV de MongoDB Atlas. |
+| `JWT_SECRET` | Clave para firmar los tokens. Obligatoria en producción. |
+| `JWT_EXPIRES_IN` | Vigencia del token, por ejemplo `1d` u `8h`. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Credenciales del servidor de correo. Si faltan, se usa Ethereal o un aviso en consola. |
+| `MAIL_FROM` | Remitente de los correos de reserva. |
 
 `DNS_SERVERS` es especialmente útil en redes donde el resolvedor DNS local
 rechaza consultas SRV. Si la red utiliza servidores DNS corporativos, se deben
@@ -171,13 +190,16 @@ La aplicación se divide en las siguientes responsabilidades:
   base de datos.
 
 Los errores se propagan con `next(error)` hacia el middleware centralizado de
-errores definido en `src/app.js`.
+errores definido en `src/middlewares/error.middleware.js`. Ese middleware
+responde `400` ante un `CastError` o un `ValidationError` de Mongoose, usa el
+código de los errores de negocio (`404` si el documento no existe) y reserva
+el `500` para fallos inesperados.
 
 Los modelos principales son:
 
 - `Service`: nombre, descripción, duración, precio, categoría y disponibilidad.
 - `Booking`: cliente, correo, fecha, hora, estado y servicios asociados.
-- `Message`: usuario, contenido del mensaje y fecha de creación.
+- `User`: nombre, correo, contraseña cifrada y rol (`user` o `admin`).
 
 MongoDB genera automáticamente los identificadores `_id` de tipo `ObjectId`.
 
@@ -271,11 +293,18 @@ Ejemplo:
 
 El identificador no puede modificarse desde el body de la solicitud.
 
+- `400` si `:sid` no es un ObjectId válido o el body no cumple el esquema.
+- `404` si el ObjectId es válido y el servicio no existe.
+- `500` solo si ocurre un fallo inesperado, delegado al middleware de errores.
+
 #### Eliminar un servicio
 
 ```http
 DELETE /api/services/:sid
 ```
+
+Usa los mismos códigos que la actualización: `400` si el id es inválido, `404`
+si no existe y `500` ante un error interno.
 
 ### Reservas
 
@@ -341,6 +370,41 @@ precio, duración, etc.) junto con su `quantity`, en lugar de solo su `ObjectId`
 }
 ```
 
+#### Actualizar una reserva
+
+```http
+PUT /api/bookings/:bid
+Content-Type: application/json
+```
+
+Todos los campos son opcionales. Solo se modifican los que lleguen en el body.
+
+```json
+{
+  "status": "confirmada",
+  "time": "16:00"
+}
+```
+
+- `400` si `:bid` no es un ObjectId válido o el body no cumple el esquema.
+- `404` si el ObjectId es válido y la reserva no existe.
+- `500` solo ante un fallo inesperado.
+
+Si `services` viene en el body, cada elemento se persiste como
+`{ service: ObjectId, quantity }` después de comprobar que el servicio existe.
+
+#### Eliminar una reserva
+
+```http
+DELETE /api/bookings/:bid
+```
+
+- `400` si `:bid` no tiene formato de ObjectId.
+- `404` si el formato es válido y la reserva no existe.
+- `500` solo ante un fallo inesperado.
+
+Al eliminarla, el servidor emite `booking:deleted` a los clientes conectados.
+
 #### Agregar un servicio a una reserva
 
 ```http
@@ -393,9 +457,80 @@ Los códigos HTTP utilizados incluyen:
 
 - `200`: operación exitosa.
 - `201`: recurso creado correctamente.
-- `400`: datos inválidos o campos obligatorios ausentes.
-- `404`: recurso o ruta no encontrada.
-- `500`: error interno del servidor.
+- `400`: body o query inválidos, o un id con formato incorrecto (`CastError`).
+- `401`: token ausente, inválido o expirado.
+- `403`: el usuario no tiene el rol requerido.
+- `404`: el id tiene formato válido, pero el documento no existe, o la ruta no existe.
+- `429`: se superaron 100 peticiones cada 15 minutos en `/api`.
+- `500`: error interno del servidor, sin filtrar el fallo al cliente.
+- `503`: el health check detecta MongoDB desconectado.
+
+## Plataforma
+
+Estas piezas se suman a la API existente. Los endpoints de servicios, reservas,
+vistas y `POST /api/evaluate` siguen públicos para no interferir con la
+evaluación.
+
+### Documentación
+
+`GET /api/docs` abre Swagger UI con el contrato OpenAPI 3.0: esquemas
+`Service`, `Booking`, `User` y `Error`, filtros de servicios y los códigos
+200, 201, 400, 401, 403 y 404.
+
+### Seguridad
+
+Helmet envía cabeceras de seguridad. La política CSP permite los scripts del
+propio origen y la conexión WebSocket de Socket.io (`ws:` y `wss:`), así las
+vistas Handlebars siguen en vivo. `upgrade-insecure-requests` queda desactivado
+para poder usar el servidor por HTTP en local.
+
+`src/middlewares/rateLimit.middleware.js` limita `/api` a 100 peticiones por IP
+cada 15 minutos. Al excederlo responde `429` con
+`{ "status": "error", "message": "..." }`.
+
+### Health check
+
+```http
+GET /api/health
+```
+
+Responde `200` si `mongoose.connection.readyState` es `connected` y `503` en
+cualquier otro caso. El cuerpo incluye `uptime` en segundos, `timestamp`,
+`database` (`connected`, `disconnected`, `connecting` o `disconnecting`) y
+`memory` con `process.memoryUsage().rss` en bytes.
+
+### Autenticación
+
+```http
+POST /api/auth/register
+POST /api/auth/login
+GET  /api/auth/current
+GET  /api/users
+```
+
+El registro exige `name`, `email` y `password` de al menos 8 caracteres. El rol
+siempre queda en `user`. El login devuelve un JWT en `payload.token` y también
+lo guarda en una cookie `HttpOnly` llamada `token`. `GET /api/auth/current`
+acepta `Authorization: Bearer <token>` o esa cookie.
+
+`GET /api/users` es la ruta administrativa: exige token y rol `admin`. Para
+probarla, crea un usuario y cambia su campo `role` a `admin` en MongoDB Atlas.
+Las rutas de servicios y reservas no piden token.
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{ "email": "ana@example.com", "password": "una-clave-larga" }
+```
+
+### Correo
+
+Al crear una reserva, o cuando su estado pasa a `confirmada` por la API o por
+Socket.io, `src/services/mail.service.js` envía un HTML breve sin esperar a que
+el SMTP responda. Si `SMTP_HOST`, `SMTP_USER` y `SMTP_PASS` no están definidos,
+intenta una cuenta de Ethereal y deja la URL de vista previa en la consola. Si
+tampoco puede, registra el aviso y la reserva se guarda igual.
 
 ## Persistencia y conexión a MongoDB
 
@@ -424,7 +559,6 @@ Los scripts definidos en `package.json` son:
 ```bash
 npm run dev   # Ejecuta el servidor en modo desarrollo
 npm start     # Ejecuta el servidor normalmente
-npm run bundle # Genera el resumen auxiliar del proyecto
 ```
 
 ## Vistas web y comunicación en tiempo real
@@ -450,6 +584,7 @@ Los controladores usan `emitToAll` sin depender de `req.app`.
 
 - `service:created`: agrega dinámicamente un nuevo servicio al catálogo.
 - `booking:updated`: agrega o actualiza una reserva en pantalla.
+- `booking:deleted`: quita de la vista una reserva eliminada.
 
 **Cliente → servidor** (manejador en `src/sockets/bookings.socket.js`):
 
@@ -476,11 +611,10 @@ reserva o agregar un servicio a una reserva desde la API REST.
 
 ## Estado del proyecto
 
-El proyecto implementa una API funcional de servicios y reservas con una
-arquitectura desacoplada y persistencia en MongoDB Atlas. La estructura permite
-incorporar posteriormente autenticación, validación avanzada de fechas y
-correos, paginación, pruebas automatizadas y nuevos módulos sin mezclar la
-lógica HTTP con el acceso a datos.
+El proyecto expone el catálogo y las reservas, las vistas en tiempo real,
+Swagger en `/api/docs` y el monitoreo en `/api/health`. La autenticación JWT,
+el control de rol admin y el correo de confirmación conviven con esa API sin
+mezclar la capa HTTP con el acceso a datos.
 
 ## Autoría
 

@@ -1,10 +1,11 @@
-<section class="page-heading">
+<header class="page-heading">
   <div>
     <p class="eyebrow">Catálogo</p>
     <h1>Servicios disponibles</h1>
-    <p>Consulta los servicios registrados en MongoDB Atlas.</p>
+    <p class="lede">Consulta los servicios registrados en MongoDB Atlas.</p>
   </div>
-</section>
+  <p class="count-chip">{{services.length}} en catálogo</p>
+</header>
 
 <section id="services-list" class="card-grid" aria-live="polite">
   {{#if services.length}}

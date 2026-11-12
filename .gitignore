@@ -1,4 +1,12 @@
-node_modules
+node_modules/
 .env
-# Herramienta de empaquetado para IA
-bundle.js
+.env.*
+!.env.example
+*.pem
+credentials.json
+credentials*.json
+*.log
+npm-debug.log*
+.DS_Store
+coverage/
+project_summary.txt

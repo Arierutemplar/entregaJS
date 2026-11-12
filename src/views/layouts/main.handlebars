@@ -8,10 +8,13 @@
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="/views/services">Turnos y Reservas</a>
-      <nav>
-        <a href="/views/services">Servicios</a>
-        <a href="/views/bookings">Reservas</a>
+      <a class="brand" href="/views/services">
+        <span class="brand-mark" aria-hidden="true">TR</span>
+        <span class="brand-text">Turnos y Reservas</span>
+      </a>
+      <nav class="site-nav" aria-label="Secciones">
+        <a class="nav-link{{#if (eq active "services")}} is-active{{/if}}" href="/views/services">Servicios</a>
+        <a class="nav-link{{#if (eq active "bookings")}} is-active{{/if}}" href="/views/bookings">Reservas</a>
       </nav>
     </header>
 

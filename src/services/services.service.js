@@ -1,5 +1,5 @@
-import mongoose from 'mongoose';
 import { buildPagination } from '../utils/pagination.js';
+import { assertFound } from '../utils/httpError.js';
 
 const SORTABLE_FIELDS = new Set([
   'name',
@@ -87,15 +87,8 @@ export default class ServicesService {
   }
 
   async getServiceById(id) {
-    if (!mongoose.isValidObjectId(id)) {
-      return { error: `Servicio con id ${id} no encontrado` };
-    }
-
     const service = await this.servicesRepository.getById(id);
-    if (!service) {
-      return { error: `Servicio con id ${id} no encontrado` };
-    }
-    return service;
+    return assertFound(service, `Servicio con id ${id} no encontrado`);
   }
 
   async createService(serviceData) {
@@ -103,27 +96,12 @@ export default class ServicesService {
   }
 
   async updateService(id, updateData) {
-    if (!mongoose.isValidObjectId(id)) {
-      return { error: `Servicio con id ${id} no encontrado` };
-    }
-
-    const existing = await this.servicesRepository.getById(id);
-    if (!existing) {
-      return { error: `Servicio con id ${id} no encontrado` };
-    }
-
-    return await this.servicesRepository.update(id, pickServiceFields(updateData));
+    const updated = await this.servicesRepository.update(id, pickServiceFields(updateData));
+    return assertFound(updated, `Servicio con id ${id} no encontrado`);
   }
 
   async deleteService(id) {
-    if (!mongoose.isValidObjectId(id)) {
-      return { error: `Servicio con id ${id} no encontrado` };
-    }
-
     const deleted = await this.servicesRepository.delete(id);
-    if (!deleted) {
-      return { error: `Servicio con id ${id} no encontrado` };
-    }
-    return deleted;
+    return assertFound(deleted, `Servicio con id ${id} no encontrado`);
   }
 }

@@ -16,6 +16,8 @@
 
   if (source === 'query') {
     req.validated = result.data;
+  } else if (source === 'params') {
+    Object.assign(req.params, result.data);
   } else {
     req[source] = result.data;
   }

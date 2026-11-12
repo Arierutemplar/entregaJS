@@ -40,6 +40,8 @@ export const createBookingSchema = z.object({
   }).optional()
 });
 
+export const updateBookingSchema = createBookingSchema.partial();
+
 export const addServiceToBookingSchema = z.object({
   quantity: quantitySchema.optional().default(1)
 });

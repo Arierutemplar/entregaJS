@@ -23,7 +23,7 @@ export default class ServicesDao {
 
   async update(id, updateData) {
     return Service.findByIdAndUpdate(id, updateData, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true
     }).lean();
   }

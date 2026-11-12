@@ -41,19 +41,26 @@
           <li><span>${escapeHtml(item.service?.name || item.service)}</span>
           <strong>× ${escapeHtml(item.quantity)}</strong></li>`).join('')}</ul>`
       : '<p class="muted">Sin servicios asociados.</p>';
-    const existingCard = document.querySelector(`[data-booking-id="${booking._id}"]`);
     const confirmMarkup = booking.status === 'confirmada' ? '' : `
-      <button type="button" class="btn confirm-booking-btn" data-booking-id="${escapeHtml(booking._id)}">Confirmar reserva</button>`;
+      <div class="card-actions">
+        <button type="button" class="btn confirm-booking-btn" data-booking-id="${escapeHtml(booking._id)}">Confirmar reserva</button>
+      </div>`;
+    const markup = `
+      <div class="card-topline">
+        <span class="status status-${escapeHtml(booking.status)}">${escapeHtml(booking.status)}</span>
+        <time class="schedule">${escapeHtml(booking.date)} · ${escapeHtml(booking.time)}</time>
+      </div>
+      <div class="client-block">
+        <h2>${escapeHtml(booking.clientName)}</h2>
+        <p class="client-email">${escapeHtml(booking.clientEmail)}</p>
+      </div>
+      <div class="service-block">
+        <h3>Servicios</h3>${servicesMarkup}
+      </div>${confirmMarkup}`;
+    const existingCard = document.querySelector(`[data-booking-id="${booking._id}"]`);
 
     if (existingCard) {
-      existingCard.innerHTML = `
-        <div class="card-topline">
-          <span class="tag">${escapeHtml(booking.status)}</span>
-          <time>${escapeHtml(booking.date)} · ${escapeHtml(booking.time)}</time>
-        </div>
-        <h2>${escapeHtml(booking.clientName)}</h2>
-        <p>${escapeHtml(booking.clientEmail)}</p>
-        <h3>Servicios</h3>${servicesMarkup}${confirmMarkup}`;
+      existingCard.innerHTML = markup;
       return;
     }
 
@@ -61,14 +68,7 @@
     const card = document.createElement('article');
     card.className = 'card booking-card';
     card.dataset.bookingId = booking._id;
-    card.innerHTML = `
-      <div class="card-topline">
-        <span class="tag">${escapeHtml(booking.status)}</span>
-        <time>${escapeHtml(booking.date)} · ${escapeHtml(booking.time)}</time>
-      </div>
-      <h2>${escapeHtml(booking.clientName)}</h2>
-      <p>${escapeHtml(booking.clientEmail)}</p>
-      <h3>Servicios</h3>${servicesMarkup}${confirmMarkup}`;
+    card.innerHTML = markup;
     list.prepend(card);
   });
 
@@ -80,6 +80,14 @@
     socket.emit('client:confirm-booking', { bookingId: button.dataset.bookingId }, response => {
       if (response?.status !== 'success') button.disabled = false;
     });
+  });
+
+  socket.on('booking:deleted', ({ _id }) => {
+    const list = document.querySelector('#bookings-list');
+    document.querySelector(`[data-booking-id="${_id}"]`)?.remove();
+    if (list && !list.querySelector('.booking-card')) {
+      list.innerHTML = '<p id="empty-bookings" class="empty-state">No hay reservas registradas.</p>';
+    }
   });
 
   socket.on('booking:error', ({ message }) => {

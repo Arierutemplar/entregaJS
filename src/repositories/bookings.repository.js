@@ -15,6 +15,10 @@ export default class BookingsRepository {
     return await this.dao.update(id, updateData);
   }
 
+  async delete(id) {
+    return await this.dao.delete(id);
+  }
+
   async getAll() {
     return await this.dao.getAll();
   }
