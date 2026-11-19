@@ -43,7 +43,7 @@ cp .env.example .env
 |---|---|
 | `PORT` | Puerto HTTP (default `3000`) |
 | `NODE_ENV` | Entorno (`development`, `production`, …) |
-| `MONGO_URL` | Connection string de MongoDB |
+| `MONGO_URL` | Connection string de MongoDB (opcional en esta pre-entrega; vacío = no conecta) |
 | `JWT_SECRET` | Reserva para JWT (se usará en entregas siguientes) |
 
 ---
@@ -57,7 +57,7 @@ npm start      # producción / arranque normal
 
 El servidor escucha en `http://localhost:3000` (o el `PORT` definido en `.env`).
 
-Si MongoDB no está disponible, el servidor **igual arranca** para poder probar health y stubs; la conexión se registra en consola.
+Si `MONGO_URL` está vacío o MongoDB no está disponible, el servidor **igual arranca** para poder probar health y stubs.
 
 ---
 
