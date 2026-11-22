@@ -1,10 +1,11 @@
-import { httpServer } from './src/app.js';
-import envConfig from './src/config/env.config.js';
-import { connectDatabase } from './src/config/database.js';
+import app from './app.js';
+import envConfig from './config/env.config.js';
+import { connectDatabase } from './config/database.js';
 
 const startServer = async () => {
-  await connectDatabase(envConfig.mongoUri);
-  httpServer.listen(envConfig.port, () => {
+  await connectDatabase(envConfig.mongoUrl);
+
+  app.listen(envConfig.port, () => {
     console.log(`Servidor escuchando en el puerto ${envConfig.port} (${envConfig.nodeEnv})`);
   });
 };

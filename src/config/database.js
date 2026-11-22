@@ -7,20 +7,18 @@ const configureDnsServers = () => {
     .map(server => server.trim())
     .filter(Boolean);
 
-  if (servers.length === 0) {
-    throw new Error('DNS_SERVERS debe contener al menos un servidor DNS válido');
+  if (servers.length > 0) {
+    dns.setServers(servers);
   }
-
-  dns.setServers(servers);
 };
 
-export const connectDatabase = async (mongoUri = process.env.MONGO_URI) => {
-  if (!mongoUri) {
-    throw new Error('Falta la variable de entorno MONGO_URI');
+export const connectDatabase = async (mongoUrl = process.env.MONGO_URL || process.env.MONGO_URI) => {
+  if (!mongoUrl) {
+    throw new Error('Falta la variable de entorno MONGO_URL');
   }
 
   configureDnsServers();
-  await mongoose.connect(mongoUri);
+  await mongoose.connect(mongoUrl);
   console.log('MongoDB conectado correctamente');
 };
 
