@@ -40,15 +40,15 @@ JWT_SECRET=<clave-larga-y-aleatoria>
 JWT_EXPIRES_IN=1h
 ```
 
-| Variable | Descripción |
-|---|---|
-| `PORT` | Puerto HTTP del servidor |
-| `NODE_ENV` | Entorno de ejecución |
-| `MONGO_URL` | Cadena de conexión a MongoDB Atlas |
-| `JWT_SECRET` | Clave para firmar JWT en entregas posteriores |
-| `JWT_EXPIRES_IN` | Duración de los JWT (opcional, por defecto `1h`) |
-| `MONGO_URI` | Alias aceptado de `MONGO_URL` |
-| `DNS_SERVERS` | Opcional: servidores DNS para conectar con Atlas |
+| Variable         | Descripción                                                                 |
+| ---------------- | --------------------------------------------------------------------------- |
+| `PORT`           | Puerto HTTP del servidor                                                    |
+| `NODE_ENV`       | Entorno de ejecución                                                        |
+| `MONGO_URL`      | Cadena de conexión a MongoDB Atlas                                          |
+| `JWT_SECRET`     | Clave para firmar JWT en entregas posteriores                               |
+| `JWT_EXPIRES_IN` | Duración de los JWT (opcional, por defecto `1h`)                            |
+| `MONGO_URI`      | Alias aceptado de `MONGO_URL`                                               |
+| `DNS_SERVERS`    | Opcional: servidores DNS para conectar con Atlas                            |
 | `TEST_MONGO_URL` | Opcional: conexión a una base independiente para las pruebas de integración |
 
 No subir el archivo `.env` al repositorio.
@@ -65,7 +65,9 @@ Por defecto: `http://localhost:8080`
 ## Estructura de carpetas
 
 ```text
-proyecto-eventos/
+backend1/
+├── docs/evidencias/           # capturas de la entrega
+├── test/                      # pruebas (node --test)
 ├── src/
 │   ├── app.js                 # configura Express (no levanta el server)
 │   ├── server.js              # levanta el servidor
@@ -171,3 +173,13 @@ GET  /api/sessions/current
 ```
 
 La autenticación real (JWT, cookies, Passport, roles) se implementará en entregas siguientes.
+
+## Evidencias
+
+Respuesta del registro, sin `password`:
+
+![Respuesta del registro](./docs/evidencias/register-response.png)
+
+Usuario en MongoDB Atlas con la contraseña hasheada:
+
+![Usuario en MongoDB Atlas](./docs/evidencias/mongo-user-hashed.png)
