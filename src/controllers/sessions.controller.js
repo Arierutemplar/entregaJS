@@ -1,9 +1,12 @@
-export const register = (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    message: 'Estructura de registro lista. Lógica de autenticación pendiente.',
-    payload: null
-  });
+import { registerUser } from '../services/sessions.service.js';
+
+export const register = async (req, res, next) => {
+  try {
+    const user = await registerUser(req.body);
+    res.status(201).json({ status: 'success', payload: user });
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const login = (req, res) => {
