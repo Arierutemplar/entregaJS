@@ -1,10 +1,9 @@
 import { HttpError } from '../utils/httpError.js';
 
-const errorResponse = (res, statusCode, message, extra) => {
+const errorResponse = (res, statusCode, message) => {
   res.status(statusCode).json({
     status: 'error',
-    message,
-    ...extra
+    message
   });
 };
 
@@ -21,6 +20,9 @@ export const errorHandler = (err, req, res, next) => {
     if (statusCode >= 500) {
       console.error(err.stack);
     }
+    if (statusCode >= 500 && process.env.NODE_ENV === 'production') {
+      message = 'Error interno del servidor';
+    }
     return errorResponse(res, statusCode, message);
   };
 
@@ -33,16 +35,20 @@ export const errorHandler = (err, req, res, next) => {
   }
 
   if (err.name === 'ValidationError' || err.name === 'ZodError') {
-    return respond(400, err.message);
+    return respond(400, process.env.NODE_ENV === 'production'
+      ? 'Los datos proporcionados no son válidos'
+      : err.message);
   }
 
   if (err.code === 11000) {
     return respond(400, 'Ya existe un registro con esos datos');
   }
 
-  if (err instanceof HttpError) {
-    return respond(err.statusCode, err.message);
-  }
-
-  return respond(500, 'Error interno del servidor');
+  const statusCode = [err.statusCode, err.status].find(status =>
+    Number.isInteger(status) && status >= 400 && status <= 599
+  ) ?? 500;
+  const message = err instanceof HttpError || (statusCode < 500 && err.expose === true)
+    ? err.message
+    : 'Error interno del servidor';
+  return respond(statusCode, message);
 };

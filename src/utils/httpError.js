@@ -5,11 +5,3 @@ export class HttpError extends Error {
     this.statusCode = statusCode;
   }
 }
-
-export const assertFound = (document, message) => {
-  if (!document) {
-    throw new HttpError(404, message);
-  }
-
-  return document;
-};

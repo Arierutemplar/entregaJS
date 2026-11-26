@@ -1,7 +1,8 @@
 import isEmail from 'validator/lib/isEmail.js';
 import * as usersRepository from '../repositories/users.repository.js';
-import { hashPassword } from '../utils/hash.js';
+import { hashPassword, verifyPassword } from '../utils/hash.js';
 import { HttpError } from '../utils/httpError.js';
+import { signToken } from '../utils/jwt.js';
 
 export const registerUser = async body => {
   const { first_name, last_name, email, password } = body || {};
@@ -45,4 +46,24 @@ export const registerUser = async body => {
     email: user.email,
     role: user.role
   };
+};
+
+export const loginUser = async body => {
+  const { email, password } = body || {};
+  if ([email, password].some(value => typeof value !== 'string' || !value.trim())) {
+    throw new HttpError(400, 'Faltan campos obligatorios');
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!isEmail(normalizedEmail)) {
+    throw new HttpError(400, 'El formato del email es inválido');
+  }
+  if (Buffer.byteLength(password, 'utf8') > 72) {
+    throw new HttpError(400, 'La contraseña no debe superar 72 bytes');
+  }
+
+  const user = await usersRepository.findByEmailWithPassword(normalizedEmail);
+  if (!user || !await verifyPassword(password, user.password)) {
+    throw new HttpError(401, 'Credenciales inválidas');
+  }
+  return signToken({ id: user.id, email: user.email, role: user.role });
 };
