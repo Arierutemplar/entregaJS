@@ -38,3 +38,7 @@ export const logout = (req, res) => {
   res.clearCookie('currentUser', cookieOptions());
   res.status(200).json({ status: 'success', message: 'Sesión cerrada' });
 };
+
+export const admin = (req, res) => {
+  res.status(200).json({ status: 'success', message: 'Acceso administrativo autorizado' });
+};

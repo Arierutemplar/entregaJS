@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import jwt from 'jsonwebtoken';
+import { testMongoUrl } from '../scripts/env-setup.js';
 import app from '../src/app.js';
 import { connectDatabase, disconnectDatabase } from '../src/config/database.js';
+import { authorize } from '../src/middlewares/auth.middleware.js';
 import User from '../src/models/User.js';
 import { hashPassword, verifyPassword } from '../src/utils/hash.js';
 import { signToken } from '../src/utils/jwt.js';
@@ -272,30 +274,119 @@ test('login y logout usan Secure en producción y respetan JWT_EXPIRES_IN', asyn
   assertCookieFlags(loggedOut.cookie, true);
 });
 
-test('persiste el registro en MongoDB y rechaza duplicados', {
-  skip: !process.env.TEST_MONGO_URL && 'Definir TEST_MONGO_URL para probar con MongoDB real'
-}, async () => {
-  const email = `registro-${randomUUID()}@example.com`;
-  let created = false;
-  try {
-    await connectDatabase(process.env.TEST_MONGO_URL);
-    await User.init();
-    const response = await register({ ...validUser, email: ` ${email.toUpperCase()} `, role: 'admin' });
-    created = response.status === 201;
-    assert.equal(response.status, 201);
-    assert.equal(response.body.payload.email, email);
-    assert.equal(response.body.payload.role, 'user');
-    assert.equal('password' in response.body.payload, false);
-
-    const stored = await User.collection.findOne({ email });
-    assert.ok(stored);
-    assert.notEqual(stored.password, validUser.password);
-    assert.equal(await verifyPassword(validUser.password, stored.password), true);
-    assert.equal((await register({ ...validUser, email })).status, 409);
-  } finally {
-    if (created) {
-      await User.collection.deleteOne({ email });
-    }
-    await disconnectDatabase();
+test('admin exige autenticación y rol admin sin restringir current', async () => {
+  for (const cookie of [undefined, 'currentUser=token-invalido']) {
+    const response = await sessionRequest('admin', { cookie });
+    assert.equal(response.status, 401);
+    assert.deepEqual(response.body, { status: 'error', message: 'No autenticado' });
   }
+  for (const role of ['user', 'organizer', 'admin']) {
+    const token = signToken({ id: '665f2a000000000000000000', email: 'ana@mail.com', role });
+    const cookie = `currentUser=${token}`;
+    const response = await sessionRequest('admin', { cookie });
+    assert.equal(response.status, role === 'admin' ? 200 : 403);
+    assert.deepEqual(response.body, role === 'admin'
+      ? { status: 'success', message: 'Acceso administrativo autorizado' }
+      : { status: 'error', message: 'Acceso prohibido' });
+    assert.equal((await sessionRequest('current', { cookie })).status, 200);
+  }
+});
+
+test('authorize admite varios roles y deniega sin usuario o sin roles permitidos', t => {
+  const unauthenticated = t.mock.fn();
+  authorize('admin')({}, {}, unauthenticated);
+  assert.equal(unauthenticated.mock.callCount(), 1);
+  assert.equal(unauthenticated.mock.calls[0].arguments[0].statusCode, 401);
+  for (const role of ['admin', 'organizer']) {
+    const next = t.mock.fn();
+    authorize('admin', 'organizer')({ user: { role } }, {}, next);
+    assert.equal(next.mock.callCount(), 1);
+    assert.equal(next.mock.calls[0].arguments[0], undefined);
+  }
+  const forbidden = t.mock.fn();
+  authorize()({ user: { role: 'admin' } }, {}, forbidden);
+  assert.equal(forbidden.mock.callCount(), 1);
+  assert.equal(forbidden.mock.calls[0].arguments[0].statusCode, 403);
+});
+
+test('MongoDB real: registro → login → current → logout y autorización por roles', {
+  skip: !testMongoUrl && 'Configurar TEST_MONGO_URL, MONGO_URL o MONGO_URI en .env.test o .env'
+}, async t => {
+  const email = `registro-${randomUUID()}@example.com`;
+  const adminEmail = `admin-${randomUUID()}@example.com`;
+  const dbName = `test_${randomUUID().replaceAll('-', '')}`;
+  t.after(async () => {
+    try {
+      if (User.db.readyState === 1) {
+        assert.equal(User.db.name, dbName);
+        await User.deleteMany({ email: { $in: [email, adminEmail] } });
+        assert.equal(await User.countDocuments({ email: { $in: [email, adminEmail] } }), 0);
+        await User.db.dropDatabase();
+      }
+    } finally {
+      await disconnectDatabase();
+    }
+  });
+  await connectDatabase(testMongoUrl, { dbName });
+  await User.init();
+  const response = await register({ ...validUser, email: ` ${email.toUpperCase()} `, role: 'admin' });
+  assert.equal(response.status, 201);
+  assert.equal(response.body.payload.email, email);
+  assert.equal(response.body.payload.role, 'user');
+  assert.equal('password' in response.body.payload, false);
+
+  const stored = await User.collection.findOne({ email });
+  assert.ok(stored);
+  assert.notEqual(stored.password, validUser.password);
+  assert.equal(await verifyPassword(validUser.password, stored.password), true);
+  assert.equal((await register({ ...validUser, email })).status, 409);
+
+  for (const credentials of [
+    { email, password: 'Incorrecta123' },
+    { email: `inexistente-${randomUUID()}@example.com`, password: validUser.password }
+  ]) {
+    const invalidLogin = await sessionRequest('login', { method: 'POST', body: credentials });
+    assert.equal(invalidLogin.status, 401);
+    assert.equal(invalidLogin.cookie, null);
+  }
+  const loggedIn = await sessionRequest('login', {
+    method: 'POST', body: { email: ` ${email.toUpperCase()} `, password: validUser.password }
+  });
+  assert.equal(loggedIn.status, 200);
+  assertCookieFlags(loggedIn.cookie, false);
+  const cookie = loggedIn.cookie.split(';')[0];
+  const token = decodeURIComponent(cookie.slice('currentUser='.length));
+  const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+  assert.deepEqual(Object.keys(payload).sort(), ['email', 'exp', 'iat', 'id', 'role']);
+  const current = await sessionRequest('current', { cookie });
+  assert.equal(current.status, 200);
+  assert.deepEqual(current.body, {
+    status: 'success', payload: { id: stored._id.toString(), email, role: 'user' }
+  });
+  for (const path of ['current', 'admin']) {
+    for (const invalidCookie of [undefined, 'currentUser=token-invalido']) {
+      assert.equal((await sessionRequest(path, { cookie: invalidCookie })).status, 401);
+    }
+  }
+  assert.equal((await sessionRequest('admin', { cookie })).status, 403);
+
+  await User.create({
+    first_name: 'Admin', last_name: 'Prueba', email: adminEmail,
+    password: await hashPassword(validUser.password), role: 'admin'
+  });
+  const adminLogin = await sessionRequest('login', {
+    method: 'POST', body: { email: adminEmail, password: validUser.password }
+  });
+  assert.equal(adminLogin.status, 200);
+  const adminCookie = adminLogin.cookie.split(';')[0];
+  assert.equal((await sessionRequest('admin', { cookie: adminCookie })).status, 200);
+
+  const loggedOut = await sessionRequest('logout', { method: 'POST', cookie });
+  assert.equal(loggedOut.status, 200);
+  assertCookieFlags(loggedOut.cookie, false);
+  assert.match(loggedOut.cookie, /^currentUser=;/);
+  assert.ok(Date.parse(loggedOut.cookie.match(/Expires=([^;]+)/)[1]) < Date.now());
+  const afterLogout = await sessionRequest('current', { cookie: loggedOut.cookie.split(';')[0] });
+  assert.equal(afterLogout.status, 401);
+  assert.deepEqual(afterLogout.body, { status: 'error', message: 'No autenticado' });
 });

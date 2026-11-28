@@ -13,3 +13,13 @@ export const authenticate = (req, res, next) => {
     next(error);
   }
 };
+
+export const authorize = (...allowedRoles) => (req, res, next) => {
+  if (!req.user) {
+    return next(new HttpError(401, 'No autenticado'));
+  }
+  if (!allowedRoles.includes(req.user.role)) {
+    return next(new HttpError(403, 'Acceso prohibido'));
+  }
+  next();
+};

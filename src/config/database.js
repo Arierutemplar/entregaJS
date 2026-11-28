@@ -12,13 +12,13 @@ const configureDnsServers = () => {
   }
 };
 
-export const connectDatabase = async (mongoUrl = process.env.MONGO_URL || process.env.MONGO_URI) => {
+export const connectDatabase = async (mongoUrl = process.env.MONGO_URL || process.env.MONGO_URI, options = {}) => {
   if (!mongoUrl) {
     throw new Error('Falta la variable de entorno MONGO_URL');
   }
 
   configureDnsServers();
-  await mongoose.connect(mongoUrl);
+  await mongoose.connect(mongoUrl, options);
   console.log('MongoDB conectado correctamente');
 };
 

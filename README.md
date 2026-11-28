@@ -42,7 +42,7 @@ JWT_EXPIRES_IN=1h
 NODE_ENV=development
 ```
 
-La plantilla `.env.example` contiene exactamente esas cinco variables. Las opciones adicionales compatibles se documentan en la tabla: `MONGO_URI` es un alias de conexión, `DNS_SERVERS` permite seleccionar resolutores y `TEST_MONGO_URL` habilita la integración real. No se eliminó su soporte; para las pruebas, exportar las opciones necesarias en el proceso, ya que no cargan `.env`.
+La plantilla `.env.example` contiene exactamente esas cinco variables. Las opciones adicionales compatibles se documentan en la tabla: `MONGO_URI` es un alias de conexión, `DNS_SERVERS` permite seleccionar resolutores y `TEST_MONGO_URL` selecciona la conexión de integración. Las pruebas cargan automáticamente `.env.test` y `.env`, sin modificar estos archivos ni requerir exportar variables en la consola.
 
 | Variable         | Descripción                                                                 |
 | ---------------- | --------------------------------------------------------------------------- |
@@ -53,7 +53,7 @@ La plantilla `.env.example` contiene exactamente esas cinco variables. Las opcio
 | `JWT_EXPIRES_IN` | Duración de los JWT (opcional, por defecto `1h`)                            |
 | `MONGO_URI`      | Alias aceptado de `MONGO_URL`                                               |
 | `DNS_SERVERS`    | Opcional: servidores DNS para conectar con Atlas                            |
-| `TEST_MONGO_URL` | Opcional: conexión a una base independiente para las pruebas de integración |
+| `TEST_MONGO_URL` | Opcional: conexión de pruebas; por defecto se usa `MONGO_URL` o `MONGO_URI`, siempre con una base temporal independiente |
 
 No subir el archivo `.env`, cookies de sesión, credenciales ni `node_modules` al repositorio. `.env.example` contiene únicamente placeholders para secretos y valores de ejemplo no sensibles.
 
@@ -72,6 +72,8 @@ Por defecto: `http://localhost:8080`
 backend1/
 ├── docs/evidencias/           # capturas de la entrega (anonimizar antes de publicar)
 ├── test/                      # pruebas (node --test)
+├── scripts/
+│   └── env-setup.js           # carga del entorno de pruebas
 ├── src/
 │   ├── app.js                 # configura Express (no levanta el server)
 │   ├── server.js              # levanta el servidor
@@ -85,7 +87,6 @@ backend1/
 │   ├── controllers/
 │   ├── services/
 │   ├── repositories/
-│   ├── dao/
 │   ├── models/
 │   │   ├── User.js
 │   │   └── Event.js
@@ -104,9 +105,9 @@ backend1/
 
 Flujo de capas:
 
-`routes → controllers → services → repositories → DAO → models`
+`routes → controllers → services → repositories → models`
 
-Las rutas solo enlazan middlewares y controladores. Los servicios validan el registro y el login y consultan usuarios a través de repositories y DAO; bcrypt se encapsula en `src/utils/hash.js` y la firma y verificación de JWT en `src/utils/jwt.js`. `src/middlewares/auth.middleware.js` autentica la cookie, mientras los controladores gestionan las respuestas y los flags de cookie. `app.js` configura Express sin lógica de autenticación; `server.js` carga el entorno, conecta MongoDB y comienza a escuchar.
+Las rutas solo enlazan middlewares y controladores. Los servicios validan y normalizan el email del registro y del login y consultan usuarios a través del repository, que concentra el acceso a Mongoose sin una capa DAO redundante. Las respuestas conservan el mapeo explícito de campos públicos; la contraseña solo se consulta para verificar el login. bcrypt se encapsula en `src/utils/hash.js` y la firma y verificación de JWT en `src/utils/jwt.js`. `src/middlewares/auth.middleware.js` autentica la cookie y autoriza por roles, mientras los controladores gestionan las respuestas y los flags de cookie. `app.js` configura Express sin lógica de autenticación; `server.js` carga el entorno, conecta MongoDB y comienza a escuchar.
 
 ## Rutas disponibles
 
@@ -117,6 +118,7 @@ Las rutas solo enlazan middlewares y controladores. Los servicios validan el reg
 | POST   | `/api/sessions/register` | Registro público, siempre con rol `user`                   |
 | POST   | `/api/sessions/login`    | Valida credenciales y emite la cookie `currentUser`        |
 | GET    | `/api/sessions/current`  | Devuelve el usuario del JWT; requiere cookie válida        |
+| GET    | `/api/sessions/admin`    | Ruta de ejemplo; requiere cookie válida y rol `admin`      |
 | POST   | `/api/sessions/logout`   | Elimina la cookie de sesión                                |
 
 Los ejemplos de request y response de cada ruta se detallan a continuación.
@@ -246,7 +248,13 @@ No requiere body ni una sesión válida. Elimina `currentUser` con los mismos fl
 { "status": "success", "message": "Sesión cerrada" }
 ```
 
-El logout elimina la cookie del cliente; no revoca copias del JWT, que siguen siendo válidas hasta su expiración. La autorización por roles se incorporará en una entrega posterior.
+El logout elimina la cookie del cliente; no revoca copias del JWT, que siguen siendo válidas hasta su expiración.
+
+### Autorización por roles
+
+`GET /api/sessions/admin` es una ruta administrativa de ejemplo, sin operaciones sobre datos. Usa `authenticate` seguido de `authorize('admin')`: sin cookie válida responde `401`; con rol `user` u `organizer`, `403` con `{ "status": "error", "message": "Acceso prohibido" }`; con rol `admin`, `200` con `{ "status": "success", "message": "Acceso administrativo autorizado" }`.
+
+`authorize(...allowedRoles)` admite varios roles y deniega el acceso si no se especifica ninguno. `/current` sigue disponible para cualquier usuario autenticado. El registro público no permite crear administradores: ese rol debe asignarse por un mecanismo confiable fuera del registro. Los permisos provienen del JWT y un cambio de rol en la base no actualiza tokens ya emitidos; requiere un nuevo login o esperar su expiración.
 
 ### Verificación con curl
 
@@ -277,9 +285,15 @@ Health, events, login, current autenticado y logout devuelven `200`; current des
 npm test
 ```
 
-Las pruebas HTTP verifican health, la lista inicial de eventos, rutas inexistentes (`404`), JSON inválido, el límite del parser (`413`) y errores internos, además de validaciones, normalización, rol, hash y duplicados con persistencia simulada. También cubren registro → login → current → logout → current, credenciales incorrectas, cookies ausentes, JWT manipulados o expirados y flags de cookie en producción. Las pruebas de sesiones generan una clave JWT temporal y verifican la expiración por defecto y configurable sin leer ni modificar `.env`.
+Las pruebas HTTP verifican health, la lista inicial de eventos, rutas inexistentes (`404`), JSON inválido, el límite del parser (`413`) y errores internos, además de validaciones, normalización, rol, hash y duplicados con persistencia simulada. También cubren registro → login → current → logout → current, credenciales incorrectas, cookies ausentes, JWT manipulados o expirados y flags de cookie en producción. Las pruebas de sesiones generan una clave JWT temporal y verifican la expiración por defecto y configurable, sin modificar `.env`.
 
-Para probar también la persistencia real, configurar `TEST_MONGO_URL` como variable de entorno apuntando a una base MongoDB de pruebas independiente antes de ejecutar `npm test`. La prueba de integración crea y elimina únicamente su propio usuario. No utiliza automáticamente el archivo `.env`. Reutiliza los helpers de conexión y desconexión de `src/config/database.js`, por lo que aplica los mismos DNS que el servidor: `DNS_SERVERS` exportada en el proceso o, por defecto, `1.1.1.1,8.8.8.8`. Si `TEST_MONGO_URL` no está definida, se omite la integración; si está definida y la conexión falla, la prueba falla sin ocultar el error.
+`npm test` precarga `scripts/env-setup.js`. Las variables existentes en el proceso tienen prioridad, seguidas por `.env.test` y luego `.env`; los archivos ausentes se ignoran. `test/sessions.test.js` también importa este helper, por lo que `node --test test/sessions.test.js` carga el mismo entorno.
+
+La integración usa `TEST_MONGO_URL` si está definida; en su defecto usa `MONGO_URL` o `MONGO_URI`. Para elegir otro servidor, configurar localmente `TEST_MONGO_URL` en `.env.test` (archivo ignorado por Git). No es necesario exportar variables manualmente.
+
+Cada ejecución crea una base independiente `test_<UUID>` mediante la opción `dbName`, conservando la URI y sus opciones de autenticación. La cuenta MongoDB necesita permisos para crear colecciones e índices, leer, escribir y eliminar esa base temporal. Nunca se utiliza ni elimina la base de datos de la aplicación. El hook `after` elimina los usuarios de prueba, verifica su eliminación, elimina exclusivamente la base temporal y desconecta incluso ante fallos.
+
+Contra MongoDB real se prueba registro y normalización, hash bcrypt sin exposición de contraseña, duplicados (`409`), login correcto e incorrecto, cookie HttpOnly, current (`200`/`401`), logout y rechazo posterior, y acceso administrativo (`401`/`403`/`200`). Reutiliza los helpers de `src/config/database.js` y los DNS del servidor: `DNS_SERVERS` cargada del entorno o, por defecto, `1.1.1.1,8.8.8.8`. Si no existe ninguna URI se omite la integración con un motivo explícito; si existe pero la conexión, las operaciones o la limpieza fallan, la prueba falla sin ocultar el error.
 
 ### Middlewares globales
 
@@ -336,4 +350,4 @@ git diff --cached
 git status
 ```
 
-La integración real se omite si no se exporta `TEST_MONGO_URL`; una suite en verde con esa prueba omitida no verifica la conexión autenticada con Atlas. Antes del push, completar la anonimización pendiente de evidencias y comprobar que no se incluyan secretos ni archivos temporales, incluso en capturas.
+La integración real solo se omite si no hay `TEST_MONGO_URL`, `MONGO_URL` ni `MONGO_URI` en el entorno o los archivos locales; una suite en verde con esa prueba omitida no verifica MongoDB. Antes del push, comprobar que la integración no se haya omitido, completar la anonimización pendiente de evidencias y comprobar que no se incluyan secretos ni archivos temporales, incluso en capturas.
